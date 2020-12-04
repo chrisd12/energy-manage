@@ -13,48 +13,63 @@ from sklearn.preprocessing import StandardScaler
 from envs.Storage import Storage
 from brain.agents import Agent, Template
 
-df = pd.read_csv("data/data_60m.csv")
+# df = pd.read_csv("data/data_60m.csv")
+df = pd.read_csv("data/data.csv")
 
 
 price_scaler = StandardScaler(with_mean = False)
-price = price_scaler.fit_transform(df.iloc[:, 3:4].values)
+price = price_scaler.fit_transform(df.iloc[:, 2:3].values)
 
 energy_scaler = StandardScaler(with_mean = False)
-pv = energy_scaler.fit_transform(df.iloc[:, 2:3].values)
+pv = energy_scaler.fit_transform(df.iloc[:, 0:1].values)
 load = energy_scaler.transform(df.iloc[:, 1:2].values)
+
+# price_scaler = StandardScaler(with_mean = False)
+# price = price_scaler.fit_transform(df.iloc[:, 3:4].values)
+
+# energy_scaler = StandardScaler(with_mean = False)
+# pv = energy_scaler.fit_transform(df.iloc[:, 2:3].values)
+# load = energy_scaler.transform(df.iloc[:, 1:2].values)
 
 data_scaled = np.concatenate([load, pv, price], axis = -1)
 
-capacity = 5
-p_max = 1
+capacity = 5000
+p_max = 1000
 eff = 1.
-min_SOC = 10. # TODO integrate this in Storage class
-timestep = 60  # In minutes
+min_SOC = 0. # TODO integrate this in Storage class
+timestep = 60  # in minutes
 action_size = 11
 state_size = 5
 
-battery = Storage(scaled_capacity = energy_scaler.transform(np.array([[5]]))[0], 
-                  scaled_p_max = energy_scaler.transform([[1]])[0], eff = 1., 
-                  min_SOC = 0., timestep = 60, action_size = action_size)
+peak = 1.7
 
-agent = Agent(battery_class = battery, memory_size = 20000, state_size = state_size)
+battery = Storage(scaled_capacity = energy_scaler.transform(np.array([[capacity]]))[0], 
+                  scaled_p_max = energy_scaler.transform([[p_max]])[0], 
+                  eff = 1., 
+                  min_SOC = 0., 
+                  timestep = 60, 
+                  action_size = action_size,
+                  # peak = energy_scaler.transform(np.array([[peak]]))[0]
+                  )
+
+agent = Agent(battery_class = battery, memory_size = 10000, state_size = state_size)
 
 
-template_battery = Storage(scaled_capacity = energy_scaler.transform(np.array([[5]]))[0], 
-                  scaled_p_max = energy_scaler.transform([[1]])[0], eff = 1., 
+template_battery = Storage(scaled_capacity = energy_scaler.transform(np.array([[capacity]]))[0], 
+                  scaled_p_max = energy_scaler.transform([[p_max]])[0], eff = 1., 
                   min_SOC = 0., timestep = 60, action_size = 100000)
 
 template_agent = Template(battery_class = template_battery, memory_size = 20000, state_size = state_size)
 
 
-train_ratio = 1.
+train_ratio = 0.99
 train_size = round(len(data_scaled)*train_ratio)
 
 
 
 for step in range(train_size):
     if step == 0:
-        avg_price = np.zeros(train_size)
+        avg_price = np.zeros(train_size+1)
         day = 0
         SOC = np.zeros(train_size+1)
         SOC[step] = battery.ini_SOC
@@ -66,16 +81,23 @@ for step in range(train_size):
         reward_list = []
         av_price_list = []
         balance_list = []
-
+        
+    # if step & (7*24)==0:
+    #     done=True
+    # else : 
+    #     done = False
     if step>=24:
         avg_price[step] = np.mean(price[step-24:step])
+        avg_price[step+1] = np.mean(price[step-24+1:step+1])
     else:
         avg_price[step] = np.mean(price[0:step+1])
+        avg_price[step+1] = np.mean(price[1:step+2])
     state = np.concatenate([load[step], pv[step], np.array([SOC[step]]), price[step], np.array([avg_price[step]])])
 
     action = agent.random_action()
     reward, SOC[step+1],balance[step] = battery.perform_action(state = state, action = action, resolution = timestep)
     
+
     if step < train_size-1:
         next_state = np.concatenate([load[step+1], pv[step+1], np.array([SOC[step+1]]), price[step+1], np.array([avg_price[step+1]])])
         
@@ -94,12 +116,12 @@ for step in range(train_size):
 # plt.legend()
 # plt.show()
 
-n_epoch = 6 
+n_epoch = 4
 
 for epoch in range(n_epoch):
     for step in range(train_size):
         if step == 0:
-            avg_price = np.zeros(train_size)
+            avg_price = np.zeros(train_size+1)
             day = 0
             SOC = np.zeros(train_size+1)
             balance = np.zeros(train_size)
@@ -108,13 +130,21 @@ for epoch in range(n_epoch):
             SOC_list = []
             action_list = []
             reward_list = []
-            av_price_list = []
+            av_price_list = []  
             balance_list = []
-
+    
+    
+        # if step & (7*24)==0:
+        #     done=True
+        # else : 
+        #     done = False
+            
         if step>=24:
             avg_price[step] = np.mean(price[step-24:step])
+            avg_price[step+1] = np.mean(price[step-24+1:step+1])
         else:
-            avg_price[step] = np.mean(price[0:step+1])    
+            avg_price[step] = np.mean(price[0:step+1])
+            avg_price[step+1] = np.mean(price[1:step+2])   
             
         state = np.concatenate([load[step], pv[step], np.array([SOC[step]]), price[step], np.array([avg_price[step]])])
     
@@ -125,8 +155,8 @@ for epoch in range(n_epoch):
         reward_list.append(reward)
         action_list.append(action)
         av_price_list.append(avg_price[step])  
-        if step % (24 *7 * (60 / timestep)) == 0 and step!=0:
-            print("Epoch : ", epoch, " Week : ", int(step/(24*7*(60/timestep))), " | Mean Reward : ", round(np.mean(reward_list[(int(step-24*7*(60/timestep))):step]),2), " | Eps : ", round(explore_probability,2))
+        if step % (24 *7 * (60 / timestep)) == 0:
+            print("Epoch : ", epoch, " | Week : ", int(step/(24*7*(60/timestep))), " | Mean Reward : ", round(np.mean(reward_list[(int(step-24*7*(60/timestep))):step]),2), " | Eps : ", round(explore_probability,2))
      
     
         if step < train_size-1:
@@ -164,6 +194,11 @@ for step in range(test_size):
         action_template_list = []
         SOC_template = np.zeros(test_size+1)
         SOC_template[step] = battery.ini_SOC
+    
+    # if step & (7*24)==0:
+    #     done=True
+    # else : 
+    #     done = False
 
     if step>=24:
         avg_price[step] = np.mean(price[step-24:step])
@@ -224,8 +259,9 @@ plt.step(range(0, 24 * i), x[-24 * i:, 0], "g", label = "load")
 plt.step(range(0, 24 * i), x[-24 * i:, 1], "m", label = "pv")
 plt.step(range(0, 24 * i), av_price_list[-24 * i:], label = "av_price")
 plt.step(range(0, 24 * i), x[-24 * i:, 2], "bs", label = "price")
+# plt.step(range(0, 24 * i), reward_list[-24*i:], "r", label = "Reward")
 
-plt.step(range(0, 24 * i), balance_list[-24 * i:], "orange", label = "net_meter")
+# plt.step(range(0, 24 * i), balance_list[-24 * i:], "orange", label = "net_meter")
 # plt.step(range(0, 24 * i), balance_template_list[-24 * i:], "blue", label = "net_meter template")
 
 plt.bar(range(0, 24 * i), agent.action_list[action_list[-24 * i:]], facecolor = "w", edgecolor = "k", label = "action")

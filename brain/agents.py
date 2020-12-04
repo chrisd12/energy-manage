@@ -20,14 +20,15 @@ class Agent:
         self.bat_p_max = battery_class.p_max
         self.state_size = state_size
         self.explore_start = 1.
-        self.explore_stop = 0.01
-        self.decay_rate = 0.0001
+        self.explore_stop = 0.1
+        self.decay_rate = 0.0005
         self.decay_step = 0
         self.gamma = 0.95
         self.memory = Memory(memory_size)
         self.batch_size = 64
         self.model = self.neural_network(state_size)
         self.target_model = self.neural_network(state_size)
+        
                 
     def random_action(self):
         action = np.random.randint(0 , len(self.action_list))
@@ -46,6 +47,7 @@ class Agent:
         model.add(Dense(len(self.action_list)))
         model.compile(loss="mean_squared_error", optimizer=Adam(lr=0.001))
         model.summary()
+        
         return model
     
     
@@ -58,44 +60,49 @@ class Agent:
 
     
     def train(self):
-        tree_idx, minibatch, ISWeights = self.memory.sample(self.batch_size)
-       
+        tree_idx, minibatch,Is_weights = self.memory.sample(self.batch_size)
+
         state = np.zeros((self.batch_size, self.state_size))
         next_state = np.zeros((self.batch_size, self.state_size))
         action, reward, done = [], [], []
 
         for i in range(self.batch_size):
-            state[i] = minibatch[i][0]
-            action.append(minibatch[i][1])
-            reward.append(minibatch[i][2])
-            next_state[i] = minibatch[i][3]
-            done.append(minibatch[i][4])
-            
+            state[i] = minibatch[i][0][0]
+            action.append(minibatch[i][0][1])
+            reward.append(minibatch[i][0][2])
+            next_state[i] = minibatch[i][0][3]
+            done.append(minibatch[i][0][4])
+
+        
         target = self.model.predict(state)
         target_old = np.array(target)
         target_next = self.model.predict(next_state)
         target_val = self.target_model.predict(next_state)
-
+       
         for i in range(len(minibatch)):
             if done[i]:
                 target[i][action[i]] = reward[i]
             else:
                 a = np.argmax(target_next[i])
-                target[i][action[i]] = reward[i] + self.gamma * (target_val[i][a])
+                target[i][action[i]] = reward[i] + self.gamma * (target_val[i][a])   
 
-
-        # if self.decay_step % 120 == 0:
-          # self.target_train()
-
+                
         indices = np.arange(self.batch_size, dtype=np.int32)
         absolute_errors = np.abs(target_old[indices, np.array(action)]-target[indices, np.array(action)])
         self.memory.batch_update(tree_idx, absolute_errors)
 
-        self.model.fit(state, target, batch_size=self.batch_size, verbose=0)
+        self.model.fit(state, target, batch_size=self.batch_size, verbose=0,epochs=1)
+        
+        if self.decay_step % (24*7*76) == 0:
+            self.target_train()
+
+
         self.decay_step += 1
 
 
     def target_train(self):
+            # self.target_model.set_weights(self.model.get_wseights())
+
             q_model_theta = self.model.get_weights()
             target_model_theta = self.target_model.get_weights()
             counter = 0

@@ -99,8 +99,7 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
         pri_seg = self.tree.total_p / n       # priority segment
         self.beta = np.min([1., self.beta + self.beta_increment_per_sampling])  # max = 1
 
-        min_prob = np.min(self.tree.tree[-self.tree.capacity:]) / self.tree.total_p + np.finfo(float).eps    # for later calculate ISweight
-        # print(min_prob)
+        min_prob = np.min(self.tree.tree[-self.tree.capacity:]) / self.tree.total_p   # for later calculate ISweight
         for i in range(n):
             a, b = pri_seg * i, pri_seg * (i + 1)
             v = np.random.uniform(a, b)
@@ -109,7 +108,7 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
             
             ISWeights[i, 0] = np.power(prob/min_prob, -self.beta)
             b_idx[i] = idx
-            memory_list.append(data)
+            memory_list.append([data])
         return b_idx, memory_list, ISWeights
 
     def batch_update(self, tree_idx, abs_errors):
