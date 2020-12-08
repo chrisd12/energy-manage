@@ -80,14 +80,48 @@ df_columbia["H10"] = df_columbia_raw["energy_kWh"]
 df_columbia.index = df_columbia_raw["date_hour"]
 
 
-node_list = [10,11,12,13,14,15,16]
 fig = go.Figure()
-for i in node_list:
-    df_h = pd.DataFrame()
-    df_h = pd.read_csv("data/columbia/Residential_"+str(i)+".csv", parse_dates=[["date","hour"]])
-    df_h.index = df_h["date_hour"]
-    df_columbia["H"+str(i)] = df_h["energy_kWh"]
+for i in range(1,28):
+    if i != 23:
+        df_h = pd.DataFrame()
+        df_h = pd.read_csv("data/columbia/Residential_"+str(i)+".csv", parse_dates=[["date","hour"]])
+        df_h.index = df_h["date_hour"]
+        df_h = df_h.resample("60T").mean()
+        df_columbia["H"+str(i)] = df_h["energy_kWh"]
     
-    fig.add_trace(go.Scatter(x=df_h.index, y=df_h["energy_kWh"].values, mode='lines', name=str(i)))
+        fig.add_trace(go.Scatter(x=df_h.index, y=df_h["energy_kWh"].values, mode='lines', name=str(i)))
+# plot(fig)
+
+
+df_columbia = df_columbia["2016-07-01 00:00:00":"2018-01-20 00:00:00"]
+df_columbia2 = df_columbia.resample("60T").mean()
+df_columbia2.interpolate(method='linear', limit=140, inplace=True)
+fig = go.Figure()
+df_columbia3 = pd.DataFrame()
+for i in df_columbia2.columns:
+    if df_columbia2[i].isnull().values.any() == False: 
+        df_columbia3[i] = df_columbia2[i]
+        fig.add_trace(go.Scatter(x=df_columbia3.index, y=df_columbia3[i].values, mode='lines', name=str(i)))
+
+fig.add_trace(go.Scatter(x=df_columbia3.index, y=df_columbia3.sum(axis=1).values, mode='lines', name="total"))
+
+plot(fig)
+  
+    
+pv = pd.read_csv("data/columbia/solar.csv", parse_dates=[["date","hour"]])
+pv.index = df_columbia3.index
+
+columbia_final = pd.DataFrame()
+columbia_final["load"] = df_columbia3.sum(axis=1).values
+columbia_final["pv"] = pv["ac_output"].values/1000*10
+columbia_final["price"] = df_price["2016-07-01 00:00:00":"2018-01-20 00:00:00"].resample("60T").mean().interpolate("linear").values
+columbia_final.index = df_columbia3.index
+
+columbia_final.to_csv("data/columbia/columbia_final.csv")
+
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=columbia_final.index, y=columbia_final["load"].values, mode='lines', name='load'))
+fig.add_trace(go.Scatter(x=columbia_final.index, y=columbia_final["pv"].values, mode='lines', name='pv'))
+fig.add_trace(go.Scatter(x=columbia_final.index, y=columbia_final["price"].values, mode='lines', name='price'))
 
 plot(fig)

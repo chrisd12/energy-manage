@@ -21,14 +21,14 @@ class Agent:
         self.state_size = state_size
         self.explore_start = 1.
         self.explore_stop = 0.1
-        self.decay_rate = 0.0005
+        self.decay_rate = 0.00005
         self.decay_step = 0
         self.gamma = 0.95
         self.memory = Memory(memory_size)
         self.batch_size = 64
         self.model = self.neural_network(state_size)
         self.target_model = self.neural_network(state_size)
-        
+        self.model_loss = []
                 
     def random_action(self):
         action = np.random.randint(0 , len(self.action_list))
@@ -45,7 +45,7 @@ class Agent:
         model.add(Dense(160, activation="elu"))
         model.add(Dense(40, activation="linear"))
         model.add(Dense(len(self.action_list)))
-        model.compile(loss="mean_squared_error", optimizer=Adam(lr=0.001))
+        model.compile(loss="mean_squared_error", optimizer=Adam(lr=0.0001))
         model.summary()
         
         return model
@@ -92,8 +92,9 @@ class Agent:
         self.memory.batch_update(tree_idx, absolute_errors)
 
         self.model.fit(state, target, batch_size=self.batch_size, verbose=0,epochs=1)
+        self.model_loss.append(absolute_errors.mean())
         
-        if self.decay_step % (24*7*76) == 0:
+        if self.decay_step % (24*7*80) == 0:
             self.target_train()
 
 
@@ -101,13 +102,13 @@ class Agent:
 
 
     def target_train(self):
-            # self.target_model.set_weights(self.model.get_wseights())
+            # self.target_model.set_weights(self.model.get_weights())
 
             q_model_theta = self.model.get_weights()
             target_model_theta = self.target_model.get_weights()
             counter = 0
             for q_weight, target_weight in zip(q_model_theta, target_model_theta):
-                target_weight = target_weight * (1-0.1) + q_weight *0.1
+                target_weight = target_weight * (1-0.2) + q_weight *0.2
                 target_model_theta[counter] = target_weight
                 counter += 1
             self.target_model.set_weights(target_model_theta)

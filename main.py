@@ -14,27 +14,20 @@ from envs.Storage import Storage
 from brain.agents import Agent, Template
 
 # df = pd.read_csv("data/data_60m.csv")
-df = pd.read_csv("data/data.csv")
-
-
-price_scaler = StandardScaler(with_mean = False)
-price = price_scaler.fit_transform(df.iloc[:, 2:3].values)
+# df = pd.read_csv("data/data.csv")
+df = pd.read_csv("data/columbia/columbia_final.csv")
 
 energy_scaler = StandardScaler(with_mean = False)
-pv = energy_scaler.fit_transform(df.iloc[:, 0:1].values)
+pv = energy_scaler.fit_transform(df.iloc[:, 2:3].values)
 load = energy_scaler.transform(df.iloc[:, 1:2].values)
 
-# price_scaler = StandardScaler(with_mean = False)
-# price = price_scaler.fit_transform(df.iloc[:, 3:4].values)
-
-# energy_scaler = StandardScaler(with_mean = False)
-# pv = energy_scaler.fit_transform(df.iloc[:, 2:3].values)
-# load = energy_scaler.transform(df.iloc[:, 1:2].values)
+price_scaler = StandardScaler(with_mean = False)
+price = price_scaler.fit_transform(df.iloc[:, 3:4].values)
 
 data_scaled = np.concatenate([load, pv, price], axis = -1)
 
-capacity = 5000
-p_max = 1000
+capacity = 150
+p_max = 30
 eff = 1.
 min_SOC = 0. # TODO integrate this in Storage class
 timestep = 60  # in minutes
@@ -116,7 +109,7 @@ for step in range(train_size):
 # plt.legend()
 # plt.show()
 
-n_epoch = 4
+n_epoch = 5
 
 for epoch in range(n_epoch):
     for step in range(train_size):
@@ -157,8 +150,11 @@ for epoch in range(n_epoch):
         av_price_list.append(avg_price[step])  
         if step % (24 *7 * (60 / timestep)) == 0:
             print("Epoch : ", epoch, " | Week : ", int(step/(24*7*(60/timestep))), " | Mean Reward : ", round(np.mean(reward_list[(int(step-24*7*(60/timestep))):step]),2), " | Eps : ", round(explore_probability,2))
-     
-    
+            # try:
+            #     print("Loss : ", agent.model_loss[-1])
+            # except :
+            #     pass
+            
         if step < train_size-1:
             next_state = np.concatenate([load[step+1], pv[step+1], np.array([SOC[step+1]]), price[step+1], np.array([avg_price[step+1]])])
             
@@ -168,10 +164,10 @@ for epoch in range(n_epoch):
         else:
             break
 
-agent.model.save_weights("brain/saved_agents/DQN/agent_v3.hdf5")
+agent.model.save_weights("brain/saved_agents/DQN/columbia_v0.hdf5")
 
 test_size = len(data_scaled)
-agent.model.load_weights("brain/saved_agents/DQN/agent_v3.hdf5")
+agent.model.load_weights("brain/saved_agents/DQN/columbia_v0.hdf5")
 
 
 
@@ -228,7 +224,7 @@ for step in range(test_size):
 
 
 
-price_real = price_scaler.inverse_transform(price)
+price_real = price_scaler.inverse_transform(price)/100
 load_real = energy_scaler.inverse_transform(load)
 pv_real = energy_scaler.inverse_transform(pv)
 p_max_real = energy_scaler.inverse_transform(battery.p_max)
@@ -248,25 +244,29 @@ print("Cost with smart storage : ",np.sum(cost_ESS[-24*7:]))
 print("Template Storage Profit : ",np.sum(ESS_template_profit[-24*7:]))
 print("Smart Storage Profit : ",np.sum(ESS_profit[-24*7:]))
 
+
+plt.style.use('seaborn-muted')
 x = data_scaled
-i = 10
-
+i = 150
+j = 143
 plt.figure(figsize = (25,5))
-plt.step(range(0, 24 * i), SOC_template_list[-24 * i:], "b-", label = "SOC template")
+# plt.step(range(0, 24 * (i-j)), SOC_template_list[-24 * i:-24*j], "b-", label = "SOC template")
+plt.step(range(0, 24 * (i-j)), x[-24 * i:-24*j, 0], label = "load")
+plt.step(range(0, 24 * (i-j)), x[-24 * i:-24*j, 1], label = "pv")
+plt.step(range(0, 24 * (i-j)), SOC_list[-24 * i:-24*j], label = "SOC")
 
-plt.step(range(0, 24 * i), SOC_list[-24 * i:], "ro-", label = "SOC")
-plt.step(range(0, 24 * i), x[-24 * i:, 0], "g", label = "load")
-plt.step(range(0, 24 * i), x[-24 * i:, 1], "m", label = "pv")
-plt.step(range(0, 24 * i), av_price_list[-24 * i:], label = "av_price")
-plt.step(range(0, 24 * i), x[-24 * i:, 2], "bs", label = "price")
-# plt.step(range(0, 24 * i), reward_list[-24*i:], "r", label = "Reward")
+plt.step(range(0, 24 * (i-j)), av_price_list[-24 * i:-24*j], label = "av_price")
+plt.step(range(0, 24 * (i-j)), x[-24 * i:-24*j, 2], "b", label = "price")
+# plt.step(range(0, 24 * (i-j)), reward_list[-24*i:-24*j], "r", label = "Reward")
 
-# plt.step(range(0, 24 * i), balance_list[-24 * i:], "orange", label = "net_meter")
-# plt.step(range(0, 24 * i), balance_template_list[-24 * i:], "blue", label = "net_meter template")
+# plt.step(range(0, 24 * (i-j)), balance_list[-24 * i:-24*j], "orange", label = "net_meter")
+# plt.step(range(0, 24 * (i-j)), balance_template_list[-24 * i:-24*j], "blue", label = "net_meter template")
 
-plt.bar(range(0, 24 * i), agent.action_list[action_list[-24 * i:]], facecolor = "w", edgecolor = "k", label = "action")
+plt.bar(range(0, 24 * (i-j)), agent.action_list[action_list[-24 * i:-24*j]], facecolor = "w", edgecolor = "k", label = "action")
 plt.ylabel("SOC/ Normalized Price")
 plt.xlabel("Hour")
 plt.legend()
 plt.show()
 
+
+plt.step(range(0, len(agent.model_loss)), agent.model_loss, "b", label = "price")
