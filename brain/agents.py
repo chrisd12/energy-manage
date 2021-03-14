@@ -21,7 +21,7 @@ class Agent:
         self.state_size = state_size
         self.explore_start = 1.
         self.explore_stop = 0.1
-        self.decay_rate = 0.00005
+        self.decay_rate = 0.0001
         self.decay_step = 0
         self.gamma = 0.95
         self.memory = Memory(memory_size)
@@ -43,6 +43,8 @@ class Agent:
         model = Sequential()
         model.add(Dense(40, input_dim=state_size, activation="elu"))
         model.add(Dense(160, activation="elu"))
+        model.add(Dense(160, activation="elu"))
+        # model.add(Dense(160, activation="elu"))
         model.add(Dense(40, activation="linear"))
         model.add(Dense(len(self.action_list)))
         model.compile(loss="mean_squared_error", optimizer=Adam(lr=0.0001))
@@ -94,8 +96,8 @@ class Agent:
         self.model.fit(state, target, batch_size=self.batch_size, verbose=0,epochs=1)
         self.model_loss.append(absolute_errors.mean())
         
-        if self.decay_step % (24*7*80) == 0:
-            self.target_train()
+        #if self.decay_step % (24*7*80) == 0:
+            # self.target_train()
 
 
         self.decay_step += 1
@@ -108,7 +110,7 @@ class Agent:
             target_model_theta = self.target_model.get_weights()
             counter = 0
             for q_weight, target_weight in zip(q_model_theta, target_model_theta):
-                target_weight = target_weight * (1-0.2) + q_weight *0.2
+                target_weight = target_weight * (1-0.05) + q_weight *0.05
                 target_model_theta[counter] = target_weight
                 counter += 1
             self.target_model.set_weights(target_model_theta)

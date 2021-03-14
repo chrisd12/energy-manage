@@ -42,8 +42,11 @@ class Storage:
         load = state[0]
         pv = state[1]
         SOC = state[2]
-        price = state[3]
-        avg_price = state[4]
+        buy_price = state[3]
+        avg_buy_price = state[4]
+        sell_price = state[5]
+        avg_sell_price = state[6]
+        
         
         delta_SOC = self.action_list[action] * self.p_max * (resolution / 60) / self.capacity # relative SOC in %
         next_SOC = SOC + delta_SOC
@@ -52,11 +55,14 @@ class Storage:
 
         balance = load - pv + (delta_SOC * self.capacity)
         
+        
+        
+        
         if balance < 0:
-            current_gain = (price - avg_price) * abs(balance)
+            current_gain = (sell_price - avg_sell_price) * abs(balance)
         else:
-            current_gain = (avg_price - price) * balance
-        # current_gain = (avg_price - price) * balance
+            current_gain = (avg_buy_price - buy_price) * balance
+
 
         reward = current_gain - penalty
         return reward, next_SOC, balance

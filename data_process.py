@@ -66,7 +66,7 @@ data_60m.index.rename("Datetime", inplace=True)
 fig = go.Figure()
 fig.add_trace(go.Scatter(x=data_60m["load"].index, y=data_60m["load"].values, mode='lines', name='load'))
 fig.add_trace(go.Scatter(x=data_60m["pv"].index, y=data_60m["pv"].values, mode='lines', name='pv'))
-# fig.add_trace(go.Scatter(x=df["pv"].index, y=df["pv"].values, mode='lines', name='pv'))
+fig.add_trace(go.Scatter(x=df["pv"].index, y=df["pv"].values, mode='lines', name='pv'))
 
 plot(fig)
 
@@ -125,3 +125,34 @@ fig.add_trace(go.Scatter(x=columbia_final.index, y=columbia_final["pv"].values, 
 fig.add_trace(go.Scatter(x=columbia_final.index, y=columbia_final["price"].values, mode='lines', name='price'))
 
 plot(fig)
+
+
+load =  pd.read_csv("data/load_sub_rolle.csv")
+load.index = pd.to_datetime(load["datetime"], format="%Y-%m-%d %H:%M:%S")
+load.drop(columns=["datetime"],axis=1, inplace=True)
+pv =  pd.read_csv("data/pv_rolle.csv")
+pv.index = pd.to_datetime(pv["local_time"], format="%Y-%m-%d %H:%M")
+pv.drop(columns=["local_time","time"],inplace=True)
+pv2 = pv.resample("10T").mean().interpolate("linear")
+
+
+pv2.to_csv("pv2_rolle.csv")
+
+pv =  pd.read_csv("data/pv2_rolle.csv",sep=";")
+pv.index = pd.to_datetime(pv["datetime"], format="%Y-%m-%d %H:%M")
+pv.drop(columns=["datetime"],inplace=True)
+pv
+
+data_final = pd.DataFrame()
+data_final["pv"] = pv["electricity"]
+data_final["load"] = load[:"2019-01-12 23:00:00"]
+
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=data_final.index, y=data_final["load"].values, mode='lines', name='load'))
+fig.add_trace(go.Scatter(x=data_final.index, y=data_final["pv"].values*400, mode='lines', name='pv'))
+# fig.add_trace(go.Scatter(x=data_final.index, y=data_final["price"].values, mode='lines', name='price'))
+
+plot(fig)
+
+
+
